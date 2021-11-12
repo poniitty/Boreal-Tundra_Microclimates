@@ -242,5 +242,11 @@ dm %>% mutate(across(starts_with("T1_"), ~ifelse(day_frac_T1 < 0.95, NA, .x)),
               across(starts_with("T4_"), ~ifelse(day_frac_T4 < 0.95, NA, .x))) %>% 
   arrange(id_code, year, month) -> dm
 
+dm %>% rename(T1_prop = day_frac_T1,
+              T2_prop = day_frac_T2,
+              T3_prop = day_frac_T3,
+              T4_prop = day_frac_T4,
+              moist_prop = day_frac_moist) -> dm
+
 fwrite(dm, "C:/datacloud/biogeoclimate/microclimate/data/logger/data_article/all_data_monthly.csv")
 fwrite(dm, "data/all_data_monthly.csv")
