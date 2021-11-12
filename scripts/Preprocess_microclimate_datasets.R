@@ -74,7 +74,7 @@ T4 %>% group_by(id_code) %>%
 notNA_prop <- function(x){ round(sum(is.finite(x)/length(x))*100,1) }
 
 d %>% select(-T4) %>% 
-  group_by(id_code, date) %>%
+  group_by(id_code, area, site, date) %>%
   summarise(across(T1:moist, ~notNA_prop(.x), 
                    na.rm = F, .names = "{.col}_prop"),
             across(T1:moist, list(mean = mean, min = min, max = max), 
@@ -97,7 +97,7 @@ what_logger <- function(x){
   }
 }
 
-T4 %>% group_by(id_code, date) %>%
+T4 %>% group_by(id_code, area, site, date) %>%
   summarise(across(T4, ~notNA_prop(.x), 
                    na.rm = F, .names = "{.col}_prop"),
             across(T4, list(mean = mean, min = min, max = max), 
@@ -136,11 +136,11 @@ daycount <- data.frame(date = c(as_date(as_date("2018-01-01"):as_date("2021-12-3
 
 # T1
 daily %>% 
-  select(id_code, date, starts_with("T1")) %>% 
+  select(id_code, area, site, date, starts_with("T1")) %>% 
   filter(is.finite(T1_mean)) %>% 
   mutate(month = month(date),
          year = year(date)) %>% 
-  group_by(id_code, year, month) %>% 
+  group_by(id_code, area, site, year, month) %>% 
   summarise(ndays = n(),
             T1_mean = round(mean(T1_mean, na.rm = T),2),
             T1_absmax = round(max(T1_max, na.rm = T),2),
@@ -154,11 +154,11 @@ daily %>%
 
 # T2
 daily %>% 
-  select(id_code, date, starts_with("T2")) %>% 
+  select(id_code, area, site, date, starts_with("T2")) %>% 
   filter(is.finite(T2_mean)) %>% 
   mutate(month = month(date),
          year = year(date)) %>% 
-  group_by(id_code, year, month) %>% 
+  group_by(id_code, area, site, year, month) %>% 
   summarise(ndays = n(),
             T2_mean = round(mean(T2_mean, na.rm = T),2),
             T2_absmax = round(max(T2_max, na.rm = T),2),
@@ -172,11 +172,11 @@ daily %>%
 
 # T3
 daily %>% 
-  select(id_code, date, starts_with("T3")) %>% 
+  select(id_code, area, site, date, starts_with("T3")) %>% 
   filter(is.finite(T3_mean)) %>% 
   mutate(month = month(date),
          year = year(date)) %>% 
-  group_by(id_code, year, month) %>% 
+  group_by(id_code, area, site, year, month) %>% 
   summarise(ndays = n(),
             T3_mean = round(mean(T3_mean, na.rm = T),2),
             T3_absmax = round(max(T3_max, na.rm = T),2),
@@ -190,11 +190,11 @@ daily %>%
 
 # T4
 daily %>% 
-  select(id_code, date, logger_T4, starts_with("T4")) %>% 
+  select(id_code, area, site, date, logger_T4, starts_with("T4")) %>% 
   filter(is.finite(T4_mean)) %>% 
   mutate(month = month(date),
          year = year(date)) %>% 
-  group_by(id_code, year, month) %>% 
+  group_by(id_code, area, site, year, month) %>% 
   summarise(logger_T4 = what_logger(logger_T4),
             ndays = n(),
             T4_mean = round(mean(T4_mean, na.rm = T),2),
@@ -209,11 +209,11 @@ daily %>%
 
 # moist
 daily %>% 
-  select(id_code, date, starts_with("moist")) %>% 
+  select(id_code, area, site, date, starts_with("moist")) %>% 
   filter(is.finite(moist_mean)) %>% 
   mutate(month = month(date),
          year = year(date)) %>% 
-  group_by(id_code, year, month) %>% 
+  group_by(id_code, area, site, year, month) %>% 
   summarise(ndays = n(),
             moist_sd = round(sd(moist_mean, na.rm = T),2),
             moist_cv = round(sd(moist_mean, na.rm = T)/mean(moist_mean, na.rm = T),2),
@@ -239,7 +239,8 @@ dm %>% as.data.table()
 dm %>% mutate(across(starts_with("T1_"), ~ifelse(day_frac_T1 < 0.95, NA, .x)),
               across(starts_with("T2_"), ~ifelse(day_frac_T2 < 0.95, NA, .x)),
               across(starts_with("T3_"), ~ifelse(day_frac_T3 < 0.95, NA, .x)),
-              across(starts_with("T4_"), ~ifelse(day_frac_T4 < 0.95, NA, .x))) -> dm
+              across(starts_with("T4_"), ~ifelse(day_frac_T4 < 0.95, NA, .x))) %>% 
+  arrange(id_code, year, month) -> dm
 
 fwrite(dm, "C:/datacloud/biogeoclimate/microclimate/data/logger/data_article/all_data_monthly.csv")
 fwrite(dm, "data/all_data_monthly.csv")
