@@ -226,13 +226,31 @@ daily %>%
   relocate(day_frac_moist, .after = ndays) %>% 
   ungroup() %>% select(-ndaysmax,-ndays) -> dm_moist
 
+# Quantiles from hourly data 
+
+d %>% mutate(month = month(date)) %>% 
+  group_by(id_code, month) %>% 
+  summarise(across(T1:T4, ~quantile(.x, c(0.25, 0.5, 0.75), na.rm = T), q = c(0.25, 0.5, 0.75)))
+
+d %>% mutate(month = month(date)) %>% 
+  group_by(id_code, month) %>% 
+  summarise(T1 = quantile(T1, c(0.99, 0.98, 0.97, 0.96, 0.95), na.rm = T),
+            T2 = quantile(T2, c(0.99, 0.98, 0.97, 0.96, 0.95), na.rm = T),
+            T3 = quantile(T3, c(0.99, 0.98, 0.97, 0.96, 0.95), na.rm = T),
+            T4 = quantile(T4, c(0.99, 0.98, 0.97, 0.96, 0.95), na.rm = T),
+            q = c(99,98,97,96,95)) %>% 
+  pivot_wider(id_cols = id_code:month, names_from = q, values_from = T1:T4) -> dm_q
+
+
+
 full_join(dm_T1, dm_T2) %>% 
   full_join(., dm_T3) %>% 
   full_join(., dm_T4) %>% 
   full_join(., dm_moist) %>% 
+  full_join(., dm_q) %>% 
   mutate(across(starts_with("day_f"), ~ifelse(!is.finite(.x), 0, .x))) %>% 
   relocate(logger_T4, .after = month) %>% 
-  mutate(across(T1_mean:moist_absmin, ~ifelse(!is.finite(.x), NA, .x))) %>% 
+  mutate(across(T1_mean:T4_95, ~ifelse(!is.finite(.x), NA, .x))) %>% 
   relocate(starts_with("day_f"), .after = month) -> dm
 dm %>% as.data.table()
 
