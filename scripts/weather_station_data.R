@@ -25,7 +25,7 @@ d %>% mutate(area = factor(area, levels = plotting_order)) %>%
   geom_smooth(span = 0.15, size = 1.2)+
   scale_color_manual(values = viridis(7))
 
-
+ 
 # Plot against 30-year daily averages
 
 d <- read_csv("data/fmi_daily.csv")
