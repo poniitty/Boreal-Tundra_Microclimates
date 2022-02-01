@@ -1,5 +1,6 @@
 ####################################################################
-#
+# This code is used to filter and preprocess the microclimate 
+# datasets used in the further analyses
 
 library(tidyverse)
 library(lubridate)
@@ -7,20 +8,20 @@ library(data.table)
 library(zoo)
 
 # Raw data filtering
-
+# This file is several GB big and thus cannot be deposited in Github
 d <- fread("C:/datacloud/biogeoclimate/microclimate/data/logger/all_data.csv") %>% 
-  filter(!(area == "PIS" & site >= 100)) %>% 
-  filter(!(area %in% c("RAR","SAA","RAS")))
+  filter(!(area == "PIS" & site >= 100)) %>% # Esclude PISA sites in forest management areas
+  filter(!(area %in% c("RAR","SAA","RAS"))) # Exclude Saana, Pekka's Kilpisjärvi sites and Rastigaisa
   
 # Change the datetime to Finnish time
 d %>% mutate(datetime = with_tz(datetime, tzone = "Etc/GMT-2")) -> d
 
+# Filter wanted period
 d %>% mutate(date = as_date(datetime)) %>% 
   filter(date >= "2019-11-01" & date < "2020-11-01") %>% 
   select(-date) -> d
 
 # Change bad data to NA
-
 d %>% mutate(T1 = ifelse(error_tomst %in% c(1,2,4), NA, T1),
              T2 = ifelse(error_tomst %in% c(1,2), NA, T2),
              T3 = ifelse(error_tomst > 0, NA, T3),
@@ -29,12 +30,7 @@ d %>% mutate(T1 = ifelse(error_tomst %in% c(1,2,4), NA, T1),
              moist = ifelse(T1 < 1, NA, moist)) %>% 
   select(-moist_count, -arh) -> d
 
-# Thin HOBO measuring interval to match with used with HAXO's
-# d %>% mutate(hour = hour(datetime),
-#              mins = minute(datetime)) %>% 
-#   filter(logger_T4 == "a") %>% 
-#   filter(!is.na(T4)) -> temp
-# table(temp$hour)
+# Thin HOBO measuring interval to match with used with HAXOs (2 hours)
 
 d %>% mutate(hour = hour(datetime),
              mins = minute(datetime)) %>% 
@@ -42,8 +38,10 @@ d %>% mutate(hour = hour(datetime),
          T4 = ifelse(mins != 0, NA, T4)) %>% 
   select(-hour,-mins) -> d
 
+# Just to check the data
 d %>% filter(id_code == "AIL101") %>% tail(20)
 
+# write filtered data
 fwrite(d %>% select(-starts_with("error_")), "C:/datacloud/biogeoclimate/microclimate/data/logger/data_article/all_data.csv")
 
 
