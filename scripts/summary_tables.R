@@ -4,8 +4,10 @@ library(formattable)
 library(zoo)
 library(htmltools)
 library(webshot)
+
 webshot::install_phantomjs()
 
+# Function to format table colors
 export_formattable <- function(f, file, width = "100%", height = NULL, 
                                background = "white", delay = 0.2)
 {
@@ -18,10 +20,11 @@ export_formattable <- function(f, file, width = "100%", height = NULL,
           delay = delay)
 }
 
-
+# Order the focus areas and months
 plotting_order <- c("MAL","AIL","VAR","TII","PIS","HYY","KAR")
 month_order <- as.character(as.yearmon(seq(as_date("2019-11-01"), as_date("2020-10-31"), by = "month"), format = "%b/%Y"))
 
+# COlor palette
 var_colors <- c("darkorange","gold","gray90","olivedrab3","lightgoldenrod3","#0080FF","#0019FF","darkorchid4")
 
 # Environmental variables
@@ -168,7 +171,18 @@ export_formattable <- function(f, file, width = "100%", height = NULL,
 export_formattable(fd, "visuals/R2_table.png")
 
 # VI table
+improvement_formatter <- formatter("span", style = x ~ style(font.weight = "bold", 
+                                                             color = ifelse(x > 0, customGreen, ifelse(x < 0, customRed, "black"))), 
+                                   x ~ icontext(ifelse(x == max(x), "thumbs-up", ""), x)
+)
 
+color_text2 <- function (...) 
+{
+  formatter("span", style = function(x) style(color = csscolor(gradient(abs(as.numeric(x)), 
+                                                                        ...))))
+}
+
+# T1
 vi_df_step %>% 
   mutate(Variable = recode_factor(Variable, altitude = "Elevation",
                                   pisr = "Solar radiation",
@@ -178,7 +192,7 @@ vi_df_step %>%
                                   moist_med = "Soil moisture",
                                   wetland_prop_100m = "Wetland cover",
                                   water_prop_500m = "Water cover")) %>% 
-  filter(tsen != "T2") %>% 
+  filter(tsen == "T1") %>% 
   filter(tvar %in% c("absmin", "mean", "absmax")) %>% 
   mutate(tvar = recode_factor(tvar, absmin = "Tmin",
                               mean = "Tavg",
@@ -207,26 +221,7 @@ vi_df_step %>%
   rename('Predictor' = Variable,
          'T_var' = tvar) -> d
 
-
-improvement_formatter <- formatter("span", style = x ~ style(font.weight = "bold", 
-                                                             color = ifelse(x > 0, customGreen, ifelse(x < 0, customRed, "black"))), 
-                                   x ~ icontext(ifelse(x == max(x), "thumbs-up", ""), x)
-)
-
-color_text2 <- function (...) 
-{
-  formatter("span", style = function(x) style(color = csscolor(gradient(abs(as.numeric(x)), 
-                                                                        ...))))
-}
-
-
-formattable(d, align =c("l","l",rep("c", times = 12)), list(
-  `Predictor` = formatter("span", style = ~ style(color = "black",font.weight = "bold")), 
-  `T_var` = formatter("span", style = ~ style(color = "black",font.weight = "bold")), 
-  area(col = 3:14) ~ color_text2("white", "black")
-))
-
-d2 <- bind_rows(d, d %>% ungroup() %>% slice(n = 1) %>% mutate(Nov = 0.40))
+d2 <- bind_rows(d, d %>% ungroup() %>% slice(n = 1) %>% mutate(Nov = 0.28))
 
 color_tile3 <- function (...) {
   formatter("span", style = function(x) {
@@ -243,4 +238,121 @@ fd <- formattable(d2, align =c("l","l",rep("c", times = 12)), list(
   area(col = 3:14) ~ color_tile3(c("blue","white", "red"))
 ))
 
-export_formattable(fd, "visuals/VI_table.png")
+export_formattable(fd, "visuals/VI_table_T1.png")
+
+# T3
+vi_df_step %>% 
+  mutate(Variable = recode_factor(Variable, altitude = "Elevation",
+                                  pisr = "Solar radiation",
+                                  snow_days = "Snow cover",
+                                  canopy_cover2m_10m = "Canopy cover",
+                                  tpi100 = "TPI",
+                                  moist_med = "Soil moisture",
+                                  wetland_prop_100m = "Wetland cover",
+                                  water_prop_500m = "Water cover")) %>% 
+  filter(tsen == "T3") %>% 
+  filter(tvar %in% c("absmin", "mean", "absmax")) %>% 
+  mutate(tvar = recode_factor(tvar, absmin = "Tmin",
+                              mean = "Tavg",
+                              absmax = "Tmax")) %>%
+  filter(method %in% c("tstat", "perm_r2")) %>% 
+  pivot_wider(id_cols = c(Variable, tsen, tvar, month, area), names_from = method, values_from = Importance:Sign) %>% 
+  select(-Importance_tstat, -Sign_perm_r2) %>% 
+  mutate(Importance_perm_r2 = ifelse(Importance_perm_r2 < 0, 0, Importance_perm_r2)) %>% 
+  mutate(Sign_tstat =ifelse(Sign_tstat == "POS", 1, -1)) %>% 
+  mutate(Importance_perm_r2 = Importance_perm_r2*Sign_tstat) %>% 
+  bind_rows(.,   anti_join(x = expand_grid(Variable = unique(.$Variable),
+                                           tsen = unique(.$tsen),
+                                           tvar = unique(.$tvar),
+                                           month = unique(.$month),
+                                           area = unique(.$area)), y = .)) %>% 
+  mutate(Importance_perm_r2 = ifelse(is.na(Importance_perm_r2), 0, Importance_perm_r2),
+         Sign_tstat = ifelse(is.na(Sign_tstat), 0, Sign_tstat)) %>% 
+  arrange(area, month, tsen, tvar) %>% 
+  group_by(Variable, month, tvar) %>% 
+  summarise(Sign_tstat = weighted.mean(Sign_tstat, w = abs(Importance_perm_r2)),
+            Importance_perm_r2 = mean(Importance_perm_r2)) %>% 
+  mutate(month = month.abb[month]) %>% 
+  pivot_wider(id_cols = c(Variable, tvar), names_from = month, values_from = Importance_perm_r2) %>% 
+  relocate(Nov:Dec, .after = tvar) %>% 
+  mutate(across(Nov:Oct, ~round(.x, 2))) %>% 
+  rename('Predictor' = Variable,
+         'T_var' = tvar) -> d
+
+d2 <- bind_rows(d, d %>% ungroup() %>% slice(n = 1) %>% mutate(Nov = 0.48))
+
+color_tile3 <- function (...) {
+  formatter("span", style = function(x) {
+    style(display = "block",
+          padding = "0 4px", 
+          `border-radius` = "4px", 
+          `background-color` = csscolor(matrix(as.integer(colorRamp(...)(normalize(as.numeric(x)))), 
+                                               byrow=TRUE, dimnames=list(c("red","green","blue"), NULL), nrow=3)))
+  })}
+
+fd <- formattable(d2, align =c("l","l",rep("c", times = 12)), list(
+  `Predictor` = formatter("span", style = ~ style(color = "black",font.weight = "bold")), 
+  `T_var` = formatter("span", style = ~ style(color = "black",font.weight = "bold")), 
+  area(col = 3:14) ~ color_tile3(c("blue","white", "red"))
+))
+
+export_formattable(fd, "visuals/VI_table_T3.png")
+
+# T4
+vi_df_step %>% 
+  mutate(Variable = recode_factor(Variable, altitude = "Elevation",
+                                  pisr = "Solar radiation",
+                                  snow_days = "Snow cover",
+                                  canopy_cover2m_10m = "Canopy cover",
+                                  tpi100 = "TPI",
+                                  moist_med = "Soil moisture",
+                                  wetland_prop_100m = "Wetland cover",
+                                  water_prop_500m = "Water cover")) %>% 
+  filter(tsen == "T4") %>% 
+  filter(tvar %in% c("absmin", "mean", "absmax")) %>% 
+  mutate(tvar = recode_factor(tvar, absmin = "Tmin",
+                              mean = "Tavg",
+                              absmax = "Tmax")) %>%
+  filter(method %in% c("tstat", "perm_r2")) %>% 
+  pivot_wider(id_cols = c(Variable, tsen, tvar, month, area), names_from = method, values_from = Importance:Sign) %>% 
+  select(-Importance_tstat, -Sign_perm_r2) %>% 
+  mutate(Importance_perm_r2 = ifelse(Importance_perm_r2 < 0, 0, Importance_perm_r2)) %>% 
+  mutate(Sign_tstat =ifelse(Sign_tstat == "POS", 1, -1)) %>% 
+  mutate(Importance_perm_r2 = Importance_perm_r2*Sign_tstat) %>% 
+  bind_rows(.,   anti_join(x = expand_grid(Variable = unique(.$Variable),
+                                           tsen = unique(.$tsen),
+                                           tvar = unique(.$tvar),
+                                           month = unique(.$month),
+                                           area = unique(.$area)), y = .)) %>% 
+  mutate(Importance_perm_r2 = ifelse(is.na(Importance_perm_r2), 0, Importance_perm_r2),
+         Sign_tstat = ifelse(is.na(Sign_tstat), 0, Sign_tstat)) %>% 
+  arrange(area, month, tsen, tvar) %>% 
+  group_by(Variable, month, tvar) %>% 
+  summarise(Sign_tstat = weighted.mean(Sign_tstat, w = abs(Importance_perm_r2)),
+            Importance_perm_r2 = mean(Importance_perm_r2)) %>% 
+  mutate(month = month.abb[month]) %>% 
+  pivot_wider(id_cols = c(Variable, tvar), names_from = month, values_from = Importance_perm_r2) %>% 
+  relocate(Nov:Dec, .after = tvar) %>% 
+  mutate(across(Nov:Oct, ~round(.x, 2))) %>% 
+  rename('Predictor' = Variable,
+         'T_var' = tvar) -> d
+
+d2 <- bind_rows(d, d %>% ungroup() %>% slice(n = 1) %>% mutate(Nov = 0.48))
+
+color_tile3 <- function (...) {
+  formatter("span", style = function(x) {
+    style(display = "block",
+          padding = "0 4px", 
+          `border-radius` = "4px", 
+          `background-color` = csscolor(matrix(as.integer(colorRamp(...)(normalize(as.numeric(x)))), 
+                                               byrow=TRUE, dimnames=list(c("red","green","blue"), NULL), nrow=3)))
+  })}
+
+fd <- formattable(d2, align =c("l","l",rep("c", times = 12)), list(
+  `Predictor` = formatter("span", style = ~ style(color = "black",font.weight = "bold")), 
+  `T_var` = formatter("span", style = ~ style(color = "black",font.weight = "bold")), 
+  area(col = 3:14) ~ color_tile3(c("blue","white", "red"))
+))
+
+export_formattable(fd, "visuals/VI_table_T4.png")
+
